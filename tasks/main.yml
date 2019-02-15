@@ -34,14 +34,6 @@
     composer global require "sebastian/phpcpd=*"
   when: stat_phpcpd.stat.exists == false
 
-#install phpdcd
-- stat: path=~/.composer/vendor/bin/phpdcd
-  register: stat_phpdcd
-
-- name: Install PHPDCD
-  shell: >
-    composer global require "sebastian/phpdcd=*"
-  when: stat_phpdcd.stat.exists == false
 
 # install symfony 2 code stype
 - stat: path=~/.composer/vendor/escapestudios/symfony2-coding-standard:3.x-dev
@@ -49,17 +41,30 @@
 
 - name: Install Symfony 2 code style
   shell: >
-    composer global require "escapestudios/symfony2-coding-standard:3.x-dev:*"
+    composer global require "escapestudios/symfony2-coding-standard:3.x-dev"
   when: stat_code_standard.stat.exists == false
 
 - name: Copy Symfony 2 code style to phpcs
   shell: >
-      ~/.composer/vendor/bin/phpcs --config-set installed_paths ~/.composer/vendor/escapestudios/symfony2-coding-standard:3.x-dev
+      ~/.composer/vendor/bin/phpcs --config-set installed_paths ~/.composer/vendor/escapestudios/symfony2-coding-standard
   when: stat_code_standard.stat.exists == false
 
+#install phpstan
+- stat: path=~/.composer/vendor/bin/phpstan
+  register: stat_phpstan
+
+- name: Install PHPStan
+  shell: >
+    composer global require "phpstan/phpstan-symfony"
+  when: stat_phpstan.stat.exists == false
 
 
-#analyze code
+#project configuration
+- name: Copy phpstan.neon
+  template: src="phpstan.neon.j2" dest={{dir_project}}/phpstan.neon
+  register: stat_phpstan_neon
+
+########################################## Analyze code ##############################################################
 - name: Prepare build directory
   file:
       path: "{{ dir_reports }}"
@@ -68,7 +73,7 @@
 - name: Run phpcs metrics
   shell: ~/.composer/vendor/bin/phpcs --report=checkstyle --report-file={{ dir_reports }}/phpcs.xml --standard={{ metrics_standard }} --ignore={{ metrics_exclude }} --extensions=php {{ dir_src }}
   register: command_result
-  failed_when: "command_result.rc > 1"
+  failed_when: "'FAILED' in command_result.stderr"
 
 - name: Install phpmd ruleset
   copy: src=phpmd.ruleset.xml
@@ -91,5 +96,5 @@
 - name: Run pdepend metrics
   shell: ~/.composer/vendor/bin/pdepend --jdepend-xml={{ dir_reports }}/pdepend.xml --summary-xml={{ dir_reports }}/summary.xml --ignore={{ metrics_exclude }} {{ dir_src }}
 
-- name: Run phpdcd metrics
-  shell: ~/.composer/vendor/bin/phpdcd {{ dir_src }} > {{ dir_reports }}/phpdcd.txt
+- name: Run PHPStan metrics
+  shell: ~/.composer/vendor/bin/phpstan analyse {{ dir_src }} --error-format=checkstyle | awk '{$1=$1;print}' > {{ dir_reports }}/phpstan.xml
