@@ -1,0 +1,95 @@
+#install PHPMD
+- stat: path=~/.composer/vendor/bin/phpmd
+  register: stat_phpmd
+
+- name: Install PHPMD
+  shell: >
+    composer global require "phpmd/phpmd=@stable"
+  when: stat_phpmd.stat.exists == false
+
+#install phpcs
+- stat: path=~/.composer/vendor/bin/phpcs
+  register: stat_phpcs
+
+- name: Install PHPCS
+  shell: >
+    composer global require "squizlabs/php_codesniffer=@stable"
+  when: stat_phpcs.stat.exists == false
+
+#install phploc
+- stat: path=~/.composer/vendor/bin/phploc
+  register: stat_phploc
+
+- name: Install PHPLOC
+  shell: >
+    composer global require "phploc/phploc=*"
+  when: stat_phploc.stat.exists == false
+
+#install phpcpd
+- stat: path=~/.composer/vendor/bin/phpcpd
+  register: stat_phpcpd
+
+- name: Install PHPCPD
+  shell: >
+    composer global require "sebastian/phpcpd=*"
+  when: stat_phpcpd.stat.exists == false
+
+#install phpdcd
+- stat: path=~/.composer/vendor/bin/phpdcd
+  register: stat_phpdcd
+
+- name: Install PHPDCD
+  shell: >
+    composer global require "sebastian/phpdcd=*"
+  when: stat_phpdcd.stat.exists == false
+
+# install symfony 2 code stype
+- stat: path=~/.composer/vendor/escapestudios/symfony2-coding-standard:3.x-dev
+  register: stat_code_standard
+
+- name: Install Symfony 2 code style
+  shell: >
+    composer global require "escapestudios/symfony2-coding-standard:3.x-dev:*"
+  when: stat_code_standard.stat.exists == false
+
+- name: Copy Symfony 2 code style to phpcs
+  shell: >
+      ~/.composer/vendor/bin/phpcs --config-set installed_paths ~/.composer/vendor/escapestudios/symfony2-coding-standard:3.x-dev
+  when: stat_code_standard.stat.exists == false
+
+
+
+#analyze code
+- name: Prepare build directory
+  file:
+      path: "{{ dir_reports }}"
+      state: directory
+
+- name: Run phpcs metrics
+  shell: ~/.composer/vendor/bin/phpcs --report=checkstyle --report-file={{ dir_reports }}/phpcs.xml --standard={{ metrics_standard }} --ignore={{ metrics_exclude }} --extensions=php {{ dir_src }}
+  register: command_result
+  failed_when: "command_result.rc > 1"
+
+- name: Install phpmd ruleset
+  copy: src=phpmd.ruleset.xml
+        dest=/tmp/phpmd.ruleset.xml
+
+- name: Run phpmd metrics
+  shell: ~/.composer/vendor/bin/phpmd {{ dir_src }} xml /tmp/phpmd.ruleset.xml --exclude {{ metrics_exclude }} --reportfile {{ dir_reports }}/phpmd.xml
+  register: command_result
+  failed_when: "command_result.rc == 1"
+
+- name: Run phploc metrics
+  shell: ~/.composer/vendor/bin/phploc {{ dir_src }} --log-xml {{ dir_reports }}/phploc.xml --exclude {{ metrics_exclude }}
+  ignore_errors: yes
+
+- name: Run phpcpd metrics
+  shell: ~/.composer/vendor/bin/phpcpd {{ dir_src }} --log-pmd={{ dir_reports }}/phpcpd.xml --quiet --exclude={{ metrics_exclude }}
+  register: command_result
+  failed_when: "command_result.rc != 0 and command_result.rc != 1"
+
+- name: Run pdepend metrics
+  shell: ~/.composer/vendor/bin/pdepend --jdepend-xml={{ dir_reports }}/pdepend.xml --summary-xml={{ dir_reports }}/summary.xml --ignore={{ metrics_exclude }} {{ dir_src }}
+
+- name: Run phpdcd metrics
+  shell: ~/.composer/vendor/bin/phpdcd {{ dir_src }} > {{ dir_reports }}/phpdcd.txt

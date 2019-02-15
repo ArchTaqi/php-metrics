@@ -1,0 +1,7 @@
+---
+dir_reports: "{{ playbook_dir }}/../../reports"
+dir_project: "{{ playbook_dir }}/../.."
+dir_src:     "{{ dir_project }}/src"
+
+metrics_standard: "Symfony"
+metrics_exclude:  "**/DataFixtures/**,**/Resources/public/**,**/*Test.php"
